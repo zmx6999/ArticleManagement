@@ -8,6 +8,9 @@ import (
 	"strings"
 	"path"
 	"time"
+	"github.com/gomodule/redigo/redis"
+	"encoding/gob"
+	"bytes"
 )
 
 type ArticleController struct {
@@ -17,7 +20,17 @@ type ArticleController struct {
 func (this *ArticleController) ArticleList()  {
 	var types []models.ArticleType
 	o:=orm.NewOrm()
-	o.QueryTable("ArticleType").All(&types)
+	conn,_:=redis.Dial("tcp","127.0.0.1:6379")
+	tb,_:=redis.Bytes(conn.Do("get","types"))
+	decoder:=gob.NewDecoder(bytes.NewReader(tb))
+	decoder.Decode(&types)
+	if len(types)==0 {
+		o.QueryTable("ArticleType").All(&types)
+		var buffer bytes.Buffer
+		encoder:=gob.NewEncoder(&buffer)
+		encoder.Encode(&types)
+		conn.Do("set","types",buffer.Bytes())
+	}
 	this.Data["types"]=types
 
 	s:=o.QueryTable("Article")
